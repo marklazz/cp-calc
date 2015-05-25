@@ -60,8 +60,12 @@
     )
   )
 
+(defn can-decrease-duration [i]
+  (and (> (total-years-of-contribution) required-amount-of-years) (> (get @durations i) 0))
+)
+
 (defn decrease-duration [state i]
-  (if (> (total-years-of-contribution) required-amount-of-years)
+  (if (can-decrease-duration i)
     (assoc state i (- (get state i) 1))
     state
   )
@@ -140,7 +144,7 @@
        [:div
          [:span (str "Año: " x " duracion:" current-duration-x)]
          [:input { :type "button" :value "+" :on-click #(swap! durations increase-duration x) }]
-         [:input { :type "button" :value "-" :on-click #(swap! durations decrease-duration x) }]
+         [:input { :type "button" :value "-" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
        ])
      [:br]
      [:div
