@@ -121,13 +121,15 @@
 
 (defn result []
   (let [estimated-last-salary-average (average-salary-last-three-years)
-        monthly-return (roi estimated-last-salary-average)]
+        monthly-return (roi estimated-last-salary-average)
+        roi-percentage (* (/ monthly-return (expenses)) 100)]
      [:div.result
         [:div (str "Promedio salario en ultimos 3 años: " estimated-last-salary-average)]
         [:div (str "Gastos: " (value-with-currencies (expenses)))]
         [:div (str "Ganancia mensual esperada: " (value-with-currencies monthly-return))]
         [:div (str "Años para desquitar inversion: " (years-to-equal-investment))]
         [:div (str "Total años de contribucion: " (total-years-of-contribution))]
+        [:div (str "ROI: " roi-percentage)]
     ]
   )
 )
@@ -156,7 +158,6 @@
       [:input { :type "text" :value @dollar-currency :on-change #(reset! dollar-currency (-> % .-target .-value)) }]
      ]
    ]
-   [:br]
    [result]
    [:div [:a {:href "#/about"} "Acerca de..."]]
   ]
