@@ -14,8 +14,8 @@
 (def fees [
   { :fee 1274 :salary 15211 :min 3 :max 3 }
   { :fee 2529 :salary 15211 :min 3 }
-  { :fee 4783 :salary 28772 :min 3 } ;2a
-  { :fee 6779 :salary 40775 :min 3 } ;3a
+  { :fee 4783 :salary 28772 :min 3 } ;2nd
+  { :fee 6779 :salary 40775 :min 3 } ;3rd
   { :fee 8503 :salary 51147 :min 3 }
   { :fee 11153 :salary 67087 :min 3 }
   { :fee 12089 :salary 72718 :min 3 }
@@ -28,11 +28,43 @@
 
 (defn roi [amount] (* @roi-coeficient amount))
 
-(defn increase-duration [state i]
-  (assoc state i (+ (get state i) 1))
+(def required-amount-of-years 30)
+
+(defn total-years-of-contribution []
+  (reduce + 0 @durations))
+(defn durations-with-indexes []
+  (map vector (range 10) @durations))
+
+
+(defn last-level-of-contribution []
+  (let [non-blank (filter #(> (last %) 0) (durations-with-indexes))
+        reversed-non-blank (reverse non-blank)]
+  (first (first reversed-non-blank))
+  )
 )
+
+(defn increase-duration [state i]
+  (let [can-decrease-upper-level (> (get state (+ i 1)) 0)
+        is-last-level (= i (- (count state) 1))]
+    (do
+      (if can-decrease-upper-level
+        (let [last-level (last-level-of-contribution)
+              decreased-durations (assoc state last-level (- (get state last-level) 1))]
+          (do
+            (assoc decreased-durations i (+ (get decreased-durations i) 1))
+            )
+          )
+        (assoc state i (+ (get state i) 1))
+        )
+      )
+    )
+  )
+
 (defn decrease-duration [state i]
-  (assoc state i (- (get state i) 1))
+  (if (> (total-years-of-contribution) required-amount-of-years)
+    (assoc state i (- (get state i) 1))
+    state
+  )
 )
 
 (defn levels-during-last-years [result durations]
@@ -66,9 +98,7 @@
 )
 
 (defn expenses []
-  (let [duration-with-index (map vector (range 10) @durations)]
-  (reduce (fn [res [index duration]] (+ res (* 12 (* duration (:fee (get fees index)))))) 0 duration-with-index)
-  )
+  (reduce (fn [res [index duration]] (+ res (* 12 (* duration (:fee (get fees index)))))) 0 (durations-with-indexes))
 )
 
 (def dollar-currency (atom 26.5))
@@ -93,6 +123,7 @@
         [:div (str "Gastos: " (value-with-currencies (expenses)))]
         [:div (str "Ganancia mensual esperada: " (value-with-currencies monthly-return))]
         [:div (str "Años para desquitar inversion: " (years-to-equal-investment))]
+        [:div (str "Total años de contribucion: " (total-years-of-contribution))]
     ]
   )
 )
@@ -100,7 +131,7 @@
 (defn home-page []
   (let [deref-durations @durations]
   [:div.app
-   [:h1 "Calculadora para optimizacion de inversion en Caja de Profesionales"]
+   [:h3 "Calculadora para optimizacion de inversion en Caja de Profesionales"]
    [:br]
    [:form
      (for [x (range 10)
@@ -123,14 +154,15 @@
    ]
    [:br]
    [result]
-   [:div [:a {:href "#/about"} "go to about page"]]
+   [:div [:a {:href "#/about"} "Acerca de..."]]
   ]
   )
 )
 
 (defn about-page []
-  [:div [:h2 "About cpcalc"]
-   [:div [:a {:href "#/"} "go to the home page"]]])
+  [:div
+   [:h2 "Desarrollado por Marcelo Giorgi"]
+   [:div [:a {:href "#/"} "Ir a la pagina principal"]]])
 
 (defn current-page []
   [:div [(session/get :current-page)]])
