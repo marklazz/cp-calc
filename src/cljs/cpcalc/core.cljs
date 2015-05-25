@@ -9,20 +9,23 @@
 ;; -------------------------
 ;; Views
 
-(def durations (atom (vec (take 10 (repeat 3)))))
+(def durations (atom (vec (concat [1] (take 9 (repeat 3)) [2]))))
 
 (def fees [
-  { :fee 1274 :salary 15211 :min 3 :max 3 }
-  { :fee 2529 :salary 15211 :min 3 }
+  { :fee 1274 :salary 15211 :min 3 :max 1 }
+  { :fee 2529 :salary 15211 :min 3 :max 3 }
   { :fee 4783 :salary 28772 :min 3 } ;2nd
   { :fee 6779 :salary 40775 :min 3 } ;3rd
   { :fee 8503 :salary 51147 :min 3 }
+  { :fee 9957 :salary 59888 :min 3 }
   { :fee 11153 :salary 67087 :min 3 }
   { :fee 12089 :salary 72718 :min 3 }
   { :fee 12750 :salary 76692 :min 3 }
   { :fee 13151 :salary 79104 :min 3 }
-  { :fee 13280 :salary 79876 :min 3 }
+  { :fee 13280 :salary 79876 :min 3 :max 2 }
 ])
+
+(defn total-years [] (count fees))
 
 (def roi-coeficient (atom 0.5))
 
@@ -33,7 +36,7 @@
 (defn total-years-of-contribution []
   (reduce + 0 @durations))
 (defn durations-with-indexes []
-  (map vector (range 10) @durations))
+  (map vector (range (total-years)) @durations))
 
 
 (defn last-level-of-contribution []
@@ -43,30 +46,59 @@
   )
 )
 
+(defn can-increase-duration [i]
+  (let [current-value (get @durations i)
+       max-value (:max (get fees i))
+       can-decrease-upper-level (> (get @durations (+ i 1)) 0)
+       can-decrease-lower-level (> (get @durations (- i 1)) (:min (get fees (- i 1))))
+       is-upper-level-than-last (= i (+ (last-level-of-contribution) 1))]
+  (and (or (nil? max-value) (< current-value max-value))
+       (or can-decrease-upper-level can-decrease-lower-level))
+  )
+)
+
 (defn increase-duration [state i]
-  (let [can-decrease-upper-level (> (get state (+ i 1)) 0)
+  (let [can-decrease-upper-level (> (get @durations (+ i 1)) 0)
+        can-decrease-lower-level (> (get @durations (- i 1)) (:min (get fees (- i 1))))
         is-last-level (= i (- (count state) 1))]
     (do
-      (if can-decrease-upper-level
-        (let [last-level (last-level-of-contribution)
-              decreased-durations (assoc state last-level (- (get state last-level) 1))]
-          (do
-            (assoc decreased-durations i (+ (get decreased-durations i) 1))
-            )
+      (if (can-increase-duration i)
+        (if can-decrease-upper-level
+          (let [last-level (last-level-of-contribution)
+                decreased-durations (assoc state last-level (- (get state last-level) 1))]
+            (do
+              (assoc decreased-durations i (+ (get decreased-durations i) 1))
+              )
           )
-        (assoc state i (+ (get state i) 1))
+          (if can-decrease-lower-level
+            (let [decreased-durations (assoc state (- i 1) (- (get state (- i 1)) 1))]
+              (do
+                (println (str "los decreased " decreased-durations))
+                (assoc decreased-durations i (+ (get decreased-durations i) 1))
+                )
+              )
+            (assoc state i (+ (get state i) 1))
+          )
         )
+        state
       )
     )
   )
+)
 
 (defn can-decrease-duration [i]
-  (and (> (total-years-of-contribution) required-amount-of-years) (> (get @durations i) 0))
+  (let [current-value (get @durations i)
+        min-for-level (:min (get fees i))]
+  (and (or (> current-value min-for-level) (= (last-level-of-contribution) i))
+       (> current-value 0) (can-increase-duration (- i 1)))
+  )
 )
 
 (defn decrease-duration [state i]
   (if (can-decrease-duration i)
-    (assoc state i (- (get state i) 1))
+    (let [decreased-durations (assoc state i (- (get state i) 1))]
+      (assoc decreased-durations (- i 1) (+ (get decreased-durations (- i 1)) 1))
+    )
     state
   )
 )
@@ -140,12 +172,12 @@
    [:h3 "Calculadora para optimizacion de inversion en Caja de Profesionales"]
    [:br]
    [:form
-     (for [x (range 10)
+     (for [x (range (total-years))
            :let [current-duration-x (get @durations x)]]
        ^{:key x}
        [:div
          [:span (str "Año: " x " duracion:" current-duration-x)]
-         [:input { :type "button" :value "+" :on-click #(swap! durations increase-duration x) }]
+         [:input { :type "button" :value "+" :on-click #(swap! durations increase-duration x) :style { :display (if (can-increase-duration x) "" "none") } }]
          [:input { :type "button" :value "-" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
        ])
      [:br]
