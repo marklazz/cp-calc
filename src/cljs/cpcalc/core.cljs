@@ -171,26 +171,29 @@
   [:div.app
    [:h3 "Calculadora para optimizacion de inversion en Caja de Profesionales"]
    [:br]
-   [:form
-     (for [x (range (total-years))
-           :let [current-duration-x (get @durations x)]]
-       ^{:key x}
+   [:div
+     [:form
+       (for [x (range (total-years))
+             :let [current-duration-x (get @durations x)]]
+         ^{:key x}
+         [:div
+           [:span (str "Año: " x " duracion:" current-duration-x)]
+           [:input { :type "button" :value "+" :on-click #(swap! durations increase-duration x) :style { :display (if (can-increase-duration x) "" "none") } }]
+           [:input { :type "button" :value "-" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
+         ])
+       [:br]
        [:div
-         [:span (str "Año: " x " duracion:" current-duration-x)]
-         [:input { :type "button" :value "+" :on-click #(swap! durations increase-duration x) :style { :display (if (can-increase-duration x) "" "none") } }]
-         [:input { :type "button" :value "-" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
-       ])
-     [:br]
-     [:div
-      [:span "Coeficiente de retorno mensual basado en ficto:"]
-      [:input { :type "text" :value @roi-coeficient :on-change #(reset! roi-coeficient (-> % .-target .-value)) }]
+        [:span "Coeficiente de retorno mensual basado en ficto:"]
+        [:input { :type "text" :value @roi-coeficient :on-change #(reset! roi-coeficient (-> % .-target .-value)) }]
+       ]
+       [:div
+        [:span "Valor del dolar:"]
+        [:input { :type "text" :value @dollar-currency :on-change #(reset! dollar-currency (-> % .-target .-value)) }]
+       ]
      ]
-     [:div
-      [:span "Valor del dolar:"]
-      [:input { :type "text" :value @dollar-currency :on-change #(reset! dollar-currency (-> % .-target .-value)) }]
-     ]
+     [result]
    ]
-   [result]
+   [:div { :style { :clear "both" } }]
    [:div [:a {:href "#/about"} "Acerca de..."]]
   ]
   )
