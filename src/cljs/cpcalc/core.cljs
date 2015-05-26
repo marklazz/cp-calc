@@ -156,12 +156,12 @@
         monthly-return (roi estimated-last-salary-average)
         roi-percentage (* (/ monthly-return (expenses)) 100)]
      [:div.result
-        [:div (str "Promedio salario en ultimos 3 años: " estimated-last-salary-average)]
+        [:div (str "Promedio salario en últimos 3 años: " estimated-last-salary-average)]
         [:div (str "Gastos: " (value-with-currencies (expenses)))]
         [:div (str "Ganancia mensual esperada: " (value-with-currencies monthly-return))]
-        [:div (str "Años para desquitar inversion: " (years-to-equal-investment))]
-        [:div (str "Total años de contribucion: " (total-years-of-contribution))]
-        [:div (str "ROI: " roi-percentage)]
+        [:div (str "Años para desquitar inversión: " (years-to-equal-investment))]
+        [:div (str "Total años de contribución: " (total-years-of-contribution))]
+        [:div (str "ROI (%): " roi-percentage)]
     ]
   )
 )
@@ -169,7 +169,7 @@
 (defn home-page []
   (let [deref-durations @durations]
   [:div.app
-   [:h3 "Calculadora para optimizacion de inversion en Caja de Profesionales"]
+   [:h3 "Calculadora para optimización de inversión en Caja de Profesionales"]
    [:br]
    [:div
      [:form
@@ -177,9 +177,9 @@
              :let [current-duration-x (get @durations x)]]
          ^{:key x}
          [:div
-           [:span (str "Año: " x " duracion:" current-duration-x)]
-           [:input { :type "button" :value "+" :on-click #(swap! durations increase-duration x) :style { :display (if (can-increase-duration x) "" "none") } }]
-           [:input { :type "button" :value "-" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
+           [:span (str "En Escalón " x " durante " current-duration-x " años")]
+           [:input { :type "button" :value "Más años en escalón (+)" :on-click #(swap! durations increase-duration x) :style { :display (if (can-increase-duration x) "" "none") } }]
+           [:input { :type "button" :value "Menos años en escalón (-)" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
          ])
        [:br]
        [:div
@@ -187,7 +187,7 @@
         [:input { :type "text" :value @roi-coeficient :on-change #(reset! roi-coeficient (-> % .-target .-value)) }]
        ]
        [:div
-        [:span "Valor del dolar:"]
+        [:span "Valor del dólar:"]
         [:input { :type "text" :value @dollar-currency :on-change #(reset! dollar-currency (-> % .-target .-value)) }]
        ]
      ]
