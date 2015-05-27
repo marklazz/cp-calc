@@ -1,6 +1,6 @@
 ## Calculadora para optimización de inversión en Caja de Profesionales Universitarios (Uy)
 
-The game of tic-tac-toe, implemented in Reagent.
+Demo: http://cp-calc.herokuapp.com
 
 ## Usage
 
