@@ -3,55 +3,94 @@
               [reagent.session :as session]
               [secretary.core :as secretary :include-macros true]
               [goog.events :as events]
+              [cpcalc.backtracking :as backtracking]
+              [cpcalc.config :as config]
+              [cpcalc.util :as util]
               [goog.history.EventType :as EventType])
     (:import goog.History))
 
 ;; -------------------------
 ;; Views
-
-(def durations (atom (vec (concat [1] (take 9 (repeat 3)) [2]))))
-
-(def fees [
-  { :fee 1274 :salary 15211 :min 3 :max 1 }
-  { :fee 2529 :salary 15211 :min 3 :max 3 }
-  { :fee 4783 :salary 28772 :min 3 } ;2nd
-  { :fee 6779 :salary 40775 :min 3 } ;3rd
-  { :fee 8503 :salary 51147 :min 3 }
-  { :fee 9957 :salary 59888 :min 3 }
-  { :fee 11153 :salary 67087 :min 3 }
-  { :fee 12089 :salary 72718 :min 3 }
-  { :fee 12750 :salary 76692 :min 3 }
-  { :fee 13151 :salary 79104 :min 3 }
-  { :fee 13280 :salary 79876 :min 3 :max 2 }
-])
-
-(defn total-years [] (count fees))
-
-(def roi-coeficient (atom 0.5))
-
-(defn roi [amount] (* @roi-coeficient amount))
-
+(def durations (atom config/initial-durations))
 (def required-amount-of-years 30)
+(def backtracking-result (atom nil))
 
 (defn total-years-of-contribution []
   (reduce + 0 @durations))
-(defn durations-with-indexes []
-  (map vector (range (total-years)) @durations))
 
-
-(defn last-level-of-contribution []
-  (let [non-blank (filter #(> (last %) 0) (durations-with-indexes))
+(defn last-level-of-contribution [solution]
+  (let [non-blank (filter #(> (last %) 0) (util/durations-with-indexes solution))
         reversed-non-blank (reverse non-blank)]
   (first (first reversed-non-blank))
   )
 )
 
+;(defn levels-greater-than-min [solution]
+  ;)
+(def default-step 3)
+
+(defn durations-and-fees [solution]
+  (vec (map vector solution config/fees)))
+
+(defn lower-levels-with-duration-and-config [solution i]
+  (subvec (durations-and-fees solution) 0 i))
+
+(defn upper-levels-with-duration-and-config [solution i]
+  (subvec (durations-and-fees solution) i))
+
+(defn can-move-years-in-other-level [[duration level]]
+  (>= (- duration default-step) (:min level))
+)
+
+(defn can-increase-upper-duration [solution i]
+  (let [current-value (get solution i)
+       max-value (:max (get config/fees i))
+       can-decrease-lower-level (can-move-years-in-other-level (get (durations-and-fees solution) i))
+       is-last (= (last-level-of-contribution solution) i)
+       ]
+    (do ;(println "loco: " (last-level-of-contribution solution))
+      (and (or (nil? max-value) (< current-value max-value))
+           can-decrease-lower-level is-last))
+  )
+  )
+;(map #(can-increase-upper-duration [1 3 14 6 6 0 0 0 0 0 0] %) (range (total-years)))
+;(map vector [1 3 14 6 6 0 0 0 0 0 0] fees)
+;(map #(> (- (first %) default-step) (:min (last %))) (lower-levels-with-duration-and-config solution i))
+;(some can-move-years-in-other-level (lower-levels-with-duration-and-config solution i))
+;can-move-years-in-other-level (get (lower-levels-with-duration-and-config solution i) 4)
+
+
+(defn can-increase-lower-duration [solution i]
+ (let [current-value (get solution i)
+       max-value (:max (get config/fees i))
+       can-decrease-upper-level (some can-move-years-in-other-level (subvec (vec (map vector solution config/fees)) i))
+       can-decrease-lower-level (some can-move-years-in-other-level (subvec (vec (map vector solution config/fees)) 0 i))
+       upper-level-positive (> (get @durations (+ i 1)) 0)
+       ]
+      (and (or (nil? max-value) (< current-value max-value))
+           can-decrease-upper-level upper-level-positive)
+  )
+)
+
+(defn increase-duration-from-upper [solution i]
+  (let [last-level (last-level-of-contribution solution)
+        decreased-durations (assoc solution last-level (- (get solution last-level) 1))]
+    (assoc decreased-durations i (+ (get decreased-durations i) 1))
+  )
+)
+
+(defn increase-duration-from-lower [solution i]
+  (let [decreased-durations (assoc solution (- i 1) (- (get solution (- i 1)) 1))]
+    (assoc decreased-durations i (+ (get decreased-durations i) 1))
+  )
+)
+
 (defn can-increase-duration [i]
   (let [current-value (get @durations i)
-       max-value (:max (get fees i))
+       max-value (:max (get config/fees i))
        can-decrease-upper-level (> (get @durations (+ i 1)) 0)
-       can-decrease-lower-level (> (get @durations (- i 1)) (:min (get fees (- i 1))))
-       is-upper-level-than-last (= i (+ (last-level-of-contribution) 1))]
+       can-decrease-lower-level (> (get @durations (- i 1)) (:min (get config/fees (- i 1))))
+       is-upper-level-than-last (= i (+ (last-level-of-contribution @durations) 1))]
   (and (or (nil? max-value) (< current-value max-value))
        (or can-decrease-upper-level can-decrease-lower-level))
   )
@@ -59,12 +98,12 @@
 
 (defn increase-duration [state i]
   (let [can-decrease-upper-level (> (get @durations (+ i 1)) 0)
-        can-decrease-lower-level (> (get @durations (- i 1)) (:min (get fees (- i 1))))
+        can-decrease-lower-level (> (get @durations (- i 1)) (:min (get config/fees (- i 1))))
         is-last-level (= i (- (count state) 1))]
     (do
       (if (can-increase-duration i)
         (if can-decrease-upper-level
-          (let [last-level (last-level-of-contribution)
+          (let [last-level (last-level-of-contribution @durations)
                 decreased-durations (assoc state last-level (- (get state last-level) 1))]
             (do
               (assoc decreased-durations i (+ (get decreased-durations i) 1))
@@ -83,17 +122,23 @@
         state
       )
     )
+    )
   )
-)
+
+(defn increase-duration2 [state i direction]
+  (if (= direction :up)
+    (increase-duration-from-upper state i)
+    (increase-duration-from-lower state i)
+    )
+  )
 
 (defn can-decrease-duration [i]
   (let [current-value (get @durations i)
-        min-for-level (:min (get fees i))]
-  (and (or (> current-value min-for-level) (= (last-level-of-contribution) i))
+        min-for-level (:min (get config/fees i))]
+  (and (or (> current-value min-for-level) (= (last-level-of-contribution @durations) i))
        (> current-value 0) (can-increase-duration (- i 1)))
   )
 )
-
 (defn decrease-duration [state i]
   (if (can-decrease-duration i)
     (let [decreased-durations (assoc state i (- (get state i) 1))]
@@ -103,39 +148,22 @@
   )
 )
 
-(defn levels-during-last-years [result durations]
-  (let [reverse-durations (reverse durations)
-        level-count (count durations)
-        last-duration (first reverse-durations)
-        count-result (count result)
-        reversed-list-except-last-level (rest reverse-durations)
-        list-except-last-level (reverse reversed-list-except-last-level)
-        first-element (first reverse-durations)
-        list-decreased-on-last-year (reverse (concat [(- first-element 1)] reversed-list-except-last-level))]
-    (if (= count-result 3)
-      result
-      (if (> last-duration 0)
-        (if (> count-result 0)
-          (levels-during-last-years (concat [level-count] result) list-decreased-on-last-year)
-          (levels-during-last-years [level-count] list-decreased-on-last-year)
-        )
-        (levels-during-last-years result list-except-last-level)
-      )
-    )
-  )
-)
+;(defn can-decrease-duration2 [solution i]
+  ;(let [current-value (get solution i)
+        ;min-for-level (:min (get fees i))]
+      ;(and (or (> current-value min-for-level) (= (last-level-of-contribution solution) i))
+           ;(> current-value 0) (can-increase-duration2 solution (- i 1) :up))
+      ;)
+;)
 
-(defn average-salary-last-three-years []
-  (let [levels-in-last-years (levels-during-last-years [] @durations)
-        salary-last-years (map (fn [level] (:salary (get fees (- level 1)))) levels-in-last-years)
-        average (/ (reduce + salary-last-years) 3)]
-    average
-  )
-)
-
-(defn expenses []
-  (reduce (fn [res [index duration]] (+ res (* 12 (* duration (:fee (get fees index)))))) 0 (durations-with-indexes))
-)
+;(defn decrease-duration2 [state i]
+  ;(if (can-decrease-duration2 state i)
+    ;(let [decreased-durations (assoc state i (- (get state i) 1))]
+      ;(assoc decreased-durations (- i 1) (+ (get decreased-durations (- i 1)) 1))
+    ;)
+    ;state
+  ;)
+;)
 
 (def dollar-currency (atom 26.5))
 (defn value-with-currencies [amount]
@@ -143,28 +171,56 @@
 )
 
 (defn years-to-equal-investment []
-  (let [estimated-last-salary-average (average-salary-last-three-years)
-        monthly-return (roi estimated-last-salary-average)
-        total-expenses (expenses)
+  (let [estimated-last-salary-average (util/average-salary-last-three-years @durations)
+        monthly-return (util/roi estimated-last-salary-average)
+        total-expenses (util/expenses @durations)
         annual-return (* 12 monthly-return)]
     (/ total-expenses annual-return)
   )
 )
 
 (defn result []
-  (let [estimated-last-salary-average (average-salary-last-three-years)
-        monthly-return (roi estimated-last-salary-average)
-        roi-percentage (* (/ monthly-return (expenses)) 100)]
+  (let [estimated-last-salary-average (util/average-salary-last-three-years @durations)
+        monthly-return (util/roi estimated-last-salary-average)]
      [:div.result
         [:div (str "Promedio salario en últimos 3 años: " estimated-last-salary-average)]
-        [:div (str "Gastos: " (value-with-currencies (expenses)))]
+        [:div (str "Gastos: " (value-with-currencies (util/expenses @durations)))]
         [:div (str "Ganancia mensual esperada: " (value-with-currencies monthly-return))]
         [:div (str "Años para desquitar inversión: " (years-to-equal-investment))]
         [:div (str "Total años de contribución: " (total-years-of-contribution))]
-        [:div (str "ROI (%): " roi-percentage)]
+        [:div (str "ROI (%): " (util/roi-percentage @durations))]
     ]
   )
 )
+
+;(is-valid-solution [1 2 3 4 5 6 7 8 9 10 11])
+;(is-valid-solution [1 3 3 4 3 3 3 3 3])
+;(is-valid-solution [1 3 3 3 3 3 3 3 3 3 2])
+;(is-valid-solution [1 3 3 1 3 3 3 3 3 3 2])
+;(is-valid-solution [1 2 3 4 5 6 7 8 9 0 0])
+;(is-valid-solution [1 2 3 4 5 6 7 0 9 0 0])
+;(is-valid-solution [1 3 2 24 0 0 0 0 0 0 0])
+;(is-valid-solution [1 3 26 0 0 0 0 0 0 0 0])
+;(last-level-of-contribution [1 3 23 0 0 0 0 0 0 0 0])
+;(subvec [1 2 26 0 0 0 0 0 0 0 0] 1 2)
+;(subvec [1 2 3 4 5 6 7 8 9 10 11] 1 10)
+
+;(defn all-solutions []
+  ;(for [
+        ;years-2nd-level (range 3 (total-years))
+        ;years-3rd-level (range (total-years))
+        ;years-4th-level (range (total-years))
+        ;years-5th-level (range (total-years))
+        ;years-6th-level (range (total-years))
+        ;years-7th-level (range (total-years))
+        ;years-8th-level (range (total-years))
+        ;years-8th-level (range (total-years))
+        ;years-9th-level (range (total-years))
+        ;years-10th-level (range (total-years))
+        ;]
+    ;(concat [1] [years-2nd-level] [years-3rd-level] [years-4th-level] [years-5th-level]
+      ;[years-6th-level] [years-7th-level] [years-8th-level] [years-9th-level] [years-10th-level])
+  ;))
 
 (defn home-page []
   (let [deref-durations @durations]
@@ -173,23 +229,28 @@
    [:br]
    [:div
      [:form
-       (for [x (range (total-years))
+       (for [x (range (config/total-years))
              :let [current-duration-x (get @durations x)]]
          ^{:key x}
          [:div
            [:span (str "En Escalón " x " durante " current-duration-x " años")]
            [:input { :type "button" :value "Más años en escalón (+)" :on-click #(swap! durations increase-duration x) :style { :display (if (can-increase-duration x) "" "none") } }]
            [:input { :type "button" :value "Menos años en escalón (-)" :on-click #(swap! durations decrease-duration x) :style { :display (if (can-decrease-duration x) "" "none") } }]
+           ;[:input { :type "button" :value "Más años en escalón, tomado al escalón superior (+)" :on-click #(swap! durations increase-duration x :up) :style { :display (if (can-increase-duration2 @durations x :up) "" "none") } }]
+           ;[:input { :type "button" :value "Más años en escalón, tomado al escalón inferior (+)" :on-click #(swap! durations increase-duration x :down) :style { :display (if (can-increase-duration2 @durations x :down) "" "none") } }]
+           ;[:input { :type "button" :value "Menos años en escalón (-)" :on-click #(swap! durations decrease-duration2 x) :style { :display (if (can-decrease-duration2 @durations x) "" "none") } }]
          ])
        [:br]
        [:div
         [:span "Coeficiente de retorno mensual basado en ficto:"]
-        [:input { :type "text" :value @roi-coeficient :on-change #(reset! roi-coeficient (-> % .-target .-value)) }]
+        [:input { :type "text" :value @util/roi-coeficient :on-change #(reset! @util/roi-coeficient (-> % .-target .-value)) }]
        ]
        [:div
         [:span "Valor del dólar:"]
         [:input { :type "text" :value @dollar-currency :on-change #(reset! dollar-currency (-> % .-target .-value)) }]
        ]
+       [:input { :type "button" :value "Calcular óptimo" :on-click #(reset! durations (:solution (backtracking/backtracking-solutions backtracking/initial-backtracking-durations backtracking/initial-backtracking-durations #{}))) }]
+       ;[:span "Resultado optimo:" :style { :display (if @backtracking-result "" "none") }]
      ]
      [result]
    ]
