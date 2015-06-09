@@ -18,3 +18,4 @@
 ])
 
 (defn total-years [] (count fees))
+(def dollar-currency (atom 26.5))
